@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FRONTEND_SOURCE = ROOT / "com.xsec.desktop" / "frontend-src" / "index.ts"
+FRONTEND_SOURCE = ROOT / "com.xsec.desktop" / "frontend-src"
 FRONTEND_ARTIFACT = ROOT / "com.xsec.desktop" / "frontend" / "index.js"
 EXPECTED_TOOLS = {
     "terminal-profiles": "terminal_profiles",
@@ -34,7 +34,7 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.manifest = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
         self.mcp = json.loads((ROOT / "mcp.json").read_text(encoding="utf-8"))
-        self.source = FRONTEND_SOURCE.read_text(encoding="utf-8")
+        self.source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(FRONTEND_SOURCE.iterdir()) if path.suffix in {".ts", ".tsx"})
 
     def test_plugin_declares_one_mcp_one_skill_and_eleven_parent_sub_tools(self) -> None:
         extension = self.manifest["extensions"]["com.xsec.desktop"]
@@ -65,23 +65,28 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
         self.assertEqual(server["cwd"], "${PLUGIN_DATA}")
 
     def test_frontend_uses_cursor_reads_and_detaches_without_terminating(self) -> None:
-        self.assertIn('call("xsec.terminal.attach", { terminalId: existing })', self.source)
-        self.assertIn('call("xsec.terminal.read", {', self.source)
+        self.assertIn("call('xsec.terminal.attach', { terminalId: existing })", self.source)
+        self.assertIn("call('xsec.terminal.read', {", self.source)
         self.assertIn("cursor = result.next_cursor", self.source)
         self.assertIn("result.truncated", self.source)
-        dispose = self.source.split("async dispose()", 1)[1]
-        self.assertIn('call("xsec.terminal.detach", { terminalId })', dispose)
-        self.assertIn('call("xsec.terminal.control.release",', dispose)
-        self.assertNotIn('call("xsec.terminal.close"', dispose)
+        controller = (FRONTEND_SOURCE / "controller.ts").read_text(encoding="utf-8")
+        dispose = controller.split("  dispose = () =>", 1)[1].split("export interface SettingsSnapshot", 1)[0]
+        self.assertIn("this.disconnect(connection)", dispose)
+        self.assertIn("this.destroyTerminal()", dispose)
+        self.assertNotIn("xsec.terminal.close", dispose)
+        cleanup = controller.split("  private async releaseHandle", 1)[1].split("  async update", 1)[0]
+        self.assertIn("xsec.terminal.detach", cleanup)
+        self.assertIn("xsec.terminal.control.release", cleanup)
+        self.assertIn("Promise.allSettled", cleanup)
 
     def test_frontend_uses_host_validated_terminal_operations(self) -> None:
-        methods = set(re.findall(r'(?:call|host\.request)\("(xsec\.terminal\.[^"]+)"', self.source))
+        methods = set(re.findall(r"(?:call|host\.request)\(['\"](xsec\.terminal\.[^'\"]+)['\"]", self.source))
         declared = self.manifest["extensions"]["com.xsec.desktop"]["frontendApi"]["methods"]
         self.assertTrue(methods <= set(declared))
         checked = set()
         # This is a source contract gate; Host/PTY/browser tests prove execution.
         for method_expression, payload in re.findall(r'call\(([^,\n]+),\s*\{([^{}]*)\}\)', self.source):
-            targets = set(re.findall(r'"(xsec\.terminal\.[^"]+)"', method_expression))
+            targets = set(re.findall(r"['\"](xsec\.terminal\.[^'\"]+)['\"]", method_expression))
             mutations = targets & CONTROL_MUTATIONS
             if mutations:
                 self.assertRegex(payload, r"\bterminalId\b")
@@ -92,7 +97,7 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
             "xsec.terminal.control.acquire", "xsec.terminal.control.status"
         }:
             self.assertEqual(declared[method], {"capability": "terminal.shell", "binding": "session"})
-        self.assertIn('call("xsec.terminal.reveal", { terminalId })', self.source)
+        self.assertIn("call('xsec.terminal.reveal', { terminalId })", self.source)
 
     def test_built_frontend_and_skill_follow_the_declared_contract(self) -> None:
         self.assertTrue(FRONTEND_ARTIFACT.is_file())

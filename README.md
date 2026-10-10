@@ -30,12 +30,20 @@ close 终止 PTY；会话结束、插件撤销或 Runtime 退出按 Host 生命�
 `com.xsec.desktop/frontend/index.js`。`mcp.json` 引用平台匹配的
 `bin/system-terminal-mcp`（Windows 为 `.exe`），执行上下文由 Host 提供。
 
+终端工具栏、控制状态、终端列表、终止确认和 Shell 设置使用公共 UI；
+主题跟随 Host 的颜色模式、密度、字号与减少动效设置。xterm 保留终端渲染、
+Unicode 11 和尺寸适配。行为契约、验证范围及回滚见
+[UI 迁移记录](docs/engineering/ui-migration.md)。
+
 在工作区先运行资源控制器的 status 与 changed plan，再通过统一构建槽执行所选命令。
 复用 pnpm store 和共享 Cargo target。包的实际构建入口为：
 
 ```sh
 rtk pnpm build:frontend
 rtk pnpm build:mcp
+rtk pnpm typecheck
+rtk pnpm check:generated
+rtk python3 -m unittest discover -s tests -p test_frontend_contract.py
 ```
 
 开发 sidecar 与发布制品分别由对应构建流程生成。Desktop 的
