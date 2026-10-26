@@ -40,7 +40,7 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
         extension = self.manifest["extensions"]["com.xsec.desktop"]
         metadata = json.loads((ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(self.manifest["name"], "com.xsec.system-terminal")
-        self.assertEqual(self.manifest["version"], "4.0.0")
+        self.assertEqual(self.manifest["version"], "4.1.0")
         self.assertEqual(metadata["name"], self.manifest["name"])
         self.assertEqual(metadata["version"], self.manifest["version"])
         self.assertEqual(extension["displayName"], "系统终端 MCP")
