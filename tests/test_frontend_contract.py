@@ -104,13 +104,22 @@ class FrontendContractTests(unittest.TestCase):
     def test_manifest_versions_and_frontend_methods_match(self) -> None:
         manifest = json.loads((PLUGIN_ROOT / "plugin.json").read_text(encoding="utf-8"))
         codex = json.loads((PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "2.0.0")
+        self.assertEqual(manifest["version"], "2.0.1")
         self.assertEqual(manifest["extensions"]["com.xsec.desktop"]["schemaVersion"], 2)
         self.assertNotIn("agentTools", manifest["extensions"]["com.xsec.desktop"]["contributes"])
         self.assertEqual(manifest["version"], codex["version"])
         methods = manifest["extensions"]["com.xsec.desktop"]["frontendApi"]["methods"]
         requested = set(re.findall(r'host\.request\("([^"]+)"', self.source))
         self.assertEqual(requested, set(methods))
+
+    def test_plugin_api_lower_bound_covers_terminal_mutations(self) -> None:
+        """Desktop refuses a Plugin API range below 1.7.0 when write, resize or close is declared."""
+
+        desktop = json.loads((PLUGIN_ROOT / "plugin.json").read_text(encoding="utf-8"))["extensions"]["com.xsec.desktop"]
+        mutations = {"xsec.terminal.write", "xsec.terminal.resize", "xsec.terminal.close"}
+        self.assertTrue(mutations <= set(desktop["frontendApi"]["methods"]))
+        lower = tuple(int(part) for part in desktop["engines"]["pluginApi"].lstrip("^").split("."))
+        self.assertGreaterEqual(lower, (1, 7, 0))
 
     def test_activation_returns_explicit_lifecycle_helpers(self) -> None:
         activation = self.source.split("export function activate(host)", 1)[1]
