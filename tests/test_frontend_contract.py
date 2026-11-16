@@ -136,6 +136,17 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('return terminalSettings(host)', activation)
         self.assertIn('return terminalSurface(host)', activation)
 
+    def test_terminal_calls_send_the_open_lease_and_read_from_the_cursor(self) -> None:
+        """open returns the control lease; write, resize and close must send it back, and read must advance."""
+
+        self.assertIn("state.control = handle.control", self.source)
+        self.assertIn('host.request("xsec.terminal.write", { terminalId, control, data })', self.source)
+        self.assertIn("terminalId, control,\n    ...terminalSize(state),", self.source)
+        self.assertEqual(self.source.count('"xsec.terminal.close", { terminalId, control })'), 2)
+        self.assertIn('"xsec.terminal.close", { terminalId: handle.terminal_id, control: handle.control }', self.source)
+        self.assertIn("{ terminalId, cursor: state.cursor }", self.source)
+        self.assertIn("state.cursor = data.next_cursor", self.source)
+
     def test_source_respects_workspace_complexity_limits(self) -> None:
         lines = self.source.splitlines()
         self.assertLessEqual(len(lines), 300)
