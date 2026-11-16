@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { Terminal } from "@xterm/xterm";
 import xtermCss from "@xterm/xterm/css/xterm.css";
+import baseCss from "./base.css";
 
 type Host = {
   context: { kind?: string; tool?: { entityId?: string } } | null;
@@ -14,16 +15,80 @@ const MIN_ROWS = 2;
 const READ_WAIT_MS = 1_000;
 const MAX_READ_BYTES = 65_536;
 
+// 样式用 XSEC Desktop 的设计 token：宿主把当前主题写成 --xsec-<name> 变量，base.css 把它们收成
+// --surface、--text 等，宿主没有提供时用 Desktop 亮、暗两套默认值。
 const css = `${xtermCss}
-:root{color:var(--xsec-text-primary,#f5f5f5);background:var(--xsec-surface-base,#111)}
-*{box-sizing:border-box}html,body,[data-xsec-plugin-root]{height:100%;margin:0}.terminal{height:100%;display:flex;flex-direction:column}.bar{display:flex;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--xsec-border,#333);font:12px system-ui}.bar span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bar button{border:1px solid var(--xsec-border,#555);border-radius:5px;background:transparent;color:inherit;padding:3px 7px;cursor:pointer}.screen{min-height:0;flex:1;padding:8px}.screen .xterm{height:100%}.notice{padding:8px 10px;color:#ff908c;font:12px system-ui;white-space:pre-wrap}
+${baseCss}
+.t-app{display:flex;flex-direction:column;width:100%;height:100%;min-width:0;background:var(--surface)}
+.t-bar{display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--hairline)}
+.t-title{flex:1;min-width:0;overflow:hidden;color:var(--muted);font:12px/18px var(--mono);text-overflow:ellipsis;white-space:nowrap}
+.t-actions{display:flex;flex:none;align-items:center;gap:2px}
+.t-actions .x-btn:disabled[data-idle]{display:none}
+.t-sep{width:1px;height:16px;margin:0 4px;background:var(--hairline)}
+.t-sep:not(:has(~ .x-btn:not([hidden]))){display:none}
+.t-danger{color:var(--danger)}
+.t-danger:hover{background:color-mix(in srgb,var(--danger) 10%,var(--surface))}
+.t-list{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--hairline);color:var(--muted);font-size:12px}
+.t-list:empty{display:none}
+.t-screen{flex:1;min-height:0;padding:8px 4px 8px 12px}
+.t-screen .xterm{height:100%}
+.t-screen .xterm-viewport{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 40%,transparent) transparent}
+.t-bar .x-badge:empty{display:none}
+.t-error{margin:12px 12px 0;color:var(--danger);white-space:pre-wrap}
+.t-error:empty{display:none}
+.t-settings{display:grid;gap:8px;max-width:640px}
+.t-settings-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.t-settings-row .x-select{flex:1;min-width:160px}
+.t-info{margin:0;color:var(--muted);font-size:12px}
+.t-info:empty{display:none}
+.t-info[data-tone=error]{color:var(--danger)}
 `;
 
+// ANSI 16 色与 Desktop 原生终端相同（mygo 终端插件的亮、暗两套）。
+const ANSI_NAMES = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const;
+const ANSI_LIGHT = ["#000000", "#cd3131", "#00bc00", "#949800", "#0451a5", "#bc05bc", "#0598bc", "#555555", "#666666", "#cd3131", "#14ce14", "#b5ba00", "#0451a5", "#bc05bc", "#0598bc", "#a5a5a5"];
+const ANSI_DARK = ["#000000", "#cd3131", "#0dbc79", "#e5e510", "#2472c8", "#bc3fbc", "#11a8cd", "#e5e5e5", "#666666", "#f14c4c", "#23d18b", "#f5f543", "#3b8eea", "#d670d6", "#29b8db", "#ffffff"];
+const FALLBACK_SURFACE = "#19191c";
+const FALLBACK_TEXT = "#f4f4f5";
+const FONT_FAMILY = 'ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace';
+
+function channels(color: string): [number, number, number] | undefined {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color.trim())?.[1];
+  if (!hex) return undefined;
+  return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+}
+
+// 终端的底色、文字和光标取面板自己的 token（与 Desktop 原生终端一致），亮暗由底色的明度决定。
 function theme(theme: Record<string, string>) {
-  return {
-    background: theme["surface-base"] ?? "#111", foreground: theme["text-primary"] ?? "#f5f5f5",
-    cursor: theme.accent ?? "#76a5ff", selectionBackground: theme["accent-soft"] ?? "#2d4f7e",
+  const style = getComputedStyle(document.documentElement);
+  const token = (key: string, name: string, fallback: string) => {
+    const value = theme[key] ?? style.getPropertyValue(name).trim();
+    return channels(value) ? value : fallback;
   };
+  const background = token("content-surface", "--surface", FALLBACK_SURFACE);
+  const foreground = token("text-primary", "--text", FALLBACK_TEXT);
+  const [r, g, b] = channels(background)!;
+  const dark = 299 * r + 587 * g + 114 * b < 128_000;
+  document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  const palette = dark ? ANSI_DARK : ANSI_LIGHT;
+  const ansi: Record<string, string> = {};
+  ANSI_NAMES.forEach((name, index) => {
+    ansi[name] = palette[index];
+    ansi[`bright${name[0].toUpperCase()}${name.slice(1)}`] = palette[index + 8];
+  });
+  const [tr, tg, tb] = channels(foreground)!;
+  return {
+    ...ansi, background, foreground, cursor: foreground, cursorAccent: background,
+    selectionBackground: `rgba(${tr},${tg},${tb},${dark ? 0.24 : 0.16})`,
+  };
+}
+
+function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = ""): HTMLElementTagNameMap[K] {
+  return Object.assign(document.createElement(tag), { className, textContent: text });
+}
+
+function actionButton(text: string, className = ""): HTMLButtonElement {
+  return Object.assign(element("button", `x-btn small ghost${className ? ` ${className}` : ""}`, text), { type: "button" });
 }
 
 function terminalSize(terminal: Terminal): { cols: number; rows: number } {
@@ -81,7 +146,15 @@ function terminalView(host: Host) {
 
   const renderControl = () => {
     if (terminal) terminal.options.disableStdin = !control || controlPending || controlEnded;
-    if (controlText) controlText.textContent = controlEnded ? "已结束" : control ? "正在控制" : "观察中";
+    if (controlText) {
+      controlText.textContent = controlEnded ? "已结束" : control ? "正在控制" : "观察中";
+      controlText.className = `x-badge${control && !controlEnded ? " success" : ""}`;
+    }
+    // 只显示当前状态下用得上的操作：观察时是获取控制和接管，控制时是释放和终止。
+    if (acquireButton) acquireButton.hidden = Boolean(control) || controlEnded;
+    if (takeoverButton) takeoverButton.hidden = Boolean(control) || controlEnded;
+    if (releaseButton) releaseButton.hidden = !control || controlEnded;
+    if (closeButton) closeButton.hidden = !control || controlEnded;
     if (acquireButton) acquireButton.disabled = !terminalId || Boolean(control) || controlPending || controlEnded;
     if (takeoverButton) takeoverButton.disabled = !terminalId || Boolean(control) || controlPending || controlEnded;
     if (releaseButton) releaseButton.disabled = !control || controlPending || controlEnded;
@@ -191,13 +264,13 @@ function terminalView(host: Host) {
   };
   const showTerminalList = async () => {
     if (!terminalList) return;
+    const wasOpen = terminalList.childNodes.length > 0;
     terminalList.replaceChildren();
+    if (wasOpen) return;
     try {
       const result = await call("xsec.terminal.list", {});
       for (const handle of result.items ?? []) {
-        const button = Object.assign(document.createElement("button"), {
-          textContent: `${handle.title ?? handle.terminal_id} · ${handle.state}`,
-        });
+        const button = Object.assign(actionButton(`${handle.title ?? handle.terminal_id} · ${handle.state}`), { className: "x-btn small" });
         button.onclick = () => void call("xsec.terminal.reveal", { terminalId: handle.terminal_id }).catch(showError);
         terminalList.append(button);
       }
@@ -209,28 +282,31 @@ function terminalView(host: Host) {
     async mount(root: HTMLElement) {
       root.replaceChildren();
       root.append(Object.assign(document.createElement("style"), { textContent: css }));
-      const app = Object.assign(document.createElement("main"), { className: "terminal" });
-      const bar = Object.assign(document.createElement("div"), { className: "bar" });
-      stateText = document.createElement("span");
-      const list = Object.assign(document.createElement("button"), { textContent: "终端列表" });
+      const app = element("main", "t-app");
+      const bar = element("div", "t-bar");
+      controlText = element("span", "x-badge");
+      controlText.setAttribute("role", "status");
+      stateText = element("span", "t-title");
+      const actions = element("div", "t-actions");
+      const list = actionButton("终端列表");
       list.onclick = () => void showTerminalList();
-      const reveal = Object.assign(document.createElement("button"), { textContent: "显示" });
+      const reveal = actionButton("显示");
+      reveal.title = "在工作区中显示这个终端";
       reveal.onclick = () => {
         console.info("system-terminal.reveal", { terminalId });
         if (terminalId) void call("xsec.terminal.reveal", { terminalId }).catch(showError);
       };
-      controlText = document.createElement("span");
-      acquireButton = Object.assign(document.createElement("button"), { textContent: "获取控制", disabled: true });
+      acquireButton = Object.assign(actionButton("获取控制"), { disabled: true });
       acquireButton.onclick = () => void changeControl("acquire");
-      takeoverButton = Object.assign(document.createElement("button"), { textContent: "接管", disabled: true });
+      takeoverButton = Object.assign(actionButton("接管"), { disabled: true });
+      takeoverButton.title = "从当前控制方接管这个终端";
       takeoverButton.onclick = () => void changeControl("takeover");
-      releaseButton = Object.assign(document.createElement("button"), { textContent: "释放控制", disabled: true });
+      releaseButton = Object.assign(actionButton("释放控制"), { disabled: true, hidden: true });
       releaseButton.onclick = () => void changeControl("release");
-      closeButton = Object.assign(document.createElement("button"), { textContent: "终止终端", disabled: true });
+      closeButton = Object.assign(actionButton("终止终端", "t-danger"), { disabled: true, hidden: true });
       closeButton.onclick = () => void changeControl("close");
-      reconnectButton = Object.assign(document.createElement("button"), {
-        textContent: "重新连接", disabled: true,
-      });
+      reconnectButton = Object.assign(actionButton("重新连接"), { disabled: true });
+      reconnectButton.dataset.idle = "";
       reconnectButton.onclick = () => {
         if (!terminalId || !reconnectButton) return;
         console.info("system-terminal.reconnect", { terminalId });
@@ -243,11 +319,13 @@ function terminalView(host: Host) {
             if (reconnectButton) reconnectButton.disabled = false;
           });
       };
-      error = Object.assign(document.createElement("div"), { className: "notice" });
-      terminalList = Object.assign(document.createElement("div"), { className: "bar" });
-      const screen = Object.assign(document.createElement("div"), { className: "screen" });
-      bar.append(stateText, controlText, list, reveal, reconnectButton, acquireButton, takeoverButton, releaseButton, closeButton); app.append(bar, terminalList, screen, error); root.append(app);
-      terminal = new Terminal({ allowProposedApi: true, disableStdin: true, cursorBlink: true, fontSize: 13, scrollback: 8_000, theme: theme({}) });
+      error = element("div", "x-notice danger t-error");
+      error.setAttribute("role", "alert");
+      terminalList = element("div", "t-list");
+      const screen = element("div", "t-screen");
+      actions.append(reconnectButton, list, reveal, element("span", "t-sep"), acquireButton, takeoverButton, releaseButton, closeButton);
+      bar.append(controlText, stateText, actions); app.append(bar, terminalList, error, screen); root.append(app);
+      terminal = new Terminal({ allowProposedApi: true, disableStdin: true, cursorBlink: true, fontSize: 13, fontFamily: FONT_FAMILY, scrollback: 8_000, theme: theme({}) });
       fit = new FitAddon(); terminal.loadAddon(fit); terminal.loadAddon(new Unicode11Addon()); terminal.unicode.activeVersion = "11";
       terminal.open(screen); fit.fit();
       input = terminal.onData((data) => {
@@ -283,15 +361,28 @@ function terminalView(host: Host) {
 }
 
 function settingsView(host: Host) {
+  let dispose = () => {};
   return {
     async mount(root: HTMLElement) {
       root.replaceChildren(); root.append(Object.assign(document.createElement("style"), { textContent: css }));
-      const panel = Object.assign(document.createElement("main"), { className: "terminal" });
-      const title = Object.assign(document.createElement("div"), { className: "bar", textContent: "系统终端 MCP 设置" });
-      const info = Object.assign(document.createElement("div"), { className: "notice" });
-      const select = document.createElement("select");
-      const save = Object.assign(document.createElement("button"), { textContent: "保存默认 Shell" });
-      panel.append(title, select, save, info); root.append(panel);
+      theme({});
+      const themeSubscription = host.onTheme?.((value) => { theme(value); });
+      dispose = () => themeSubscription?.dispose();
+      const panel = element("main", "x-panel");
+      const head = element("header", "x-head");
+      head.append(element("strong", "x-title", "系统终端"));
+      const body = element("div", "x-body");
+      const card = element("section", "x-card t-settings");
+      const field = element("label", "x-field");
+      const row = element("div", "t-settings-row");
+      const select = element("select", "x-select");
+      const save = Object.assign(element("button", "x-btn primary", "保存"), { type: "button", disabled: true });
+      const info = element("p", "t-info");
+      info.setAttribute("role", "status");
+      const note = (text: string, failed = false) => { info.textContent = text; info.dataset.tone = failed ? "error" : ""; };
+      row.append(select, save);
+      field.append(element("span", "x-label", "新建终端的默认 Shell"), row);
+      card.append(field, info); body.append(card); panel.append(head, body); root.append(panel);
       try {
         const settings = await host.request("xsec.terminal.settings.get", {});
         const profiles = settings.profiles ?? [];
@@ -300,13 +391,13 @@ function settingsView(host: Host) {
         select.value = settings.configuredProfileId ?? "";
         save.disabled = settings.platform !== "windows";
         if (save.disabled) select.disabled = true;
-        info.textContent = save.disabled ? "macOS 和 Linux 使用当前帐户的系统登录 Shell。" : `当前默认 Shell：${settings.effectiveProfileId ?? "系统默认"}`;
+        note(save.disabled ? "macOS 和 Linux 使用当前帐户的系统登录 Shell。" : `当前默认 Shell：${settings.effectiveProfileId ?? "系统默认"}`);
         save.onclick = () => void host.request("xsec.terminal.settings.set", { profileId: select.value || null })
-          .then(() => { info.textContent = "默认 Shell 已保存，仅影响后续新建终端。"; })
-          .catch((reason) => { info.textContent = `保存设置失败：${String(reason)}`; });
-      } catch (reason) { info.textContent = `读取设置失败：${String(reason)}`; }
+          .then(() => { note("默认 Shell 已保存，仅影响后续新建终端。"); })
+          .catch((reason) => { note(`保存设置失败：${String(reason)}`, true); });
+      } catch (reason) { note(`读取设置失败：${String(reason)}`, true); }
     },
-    dispose() {},
+    dispose() { dispose(); },
   };
 }
 
