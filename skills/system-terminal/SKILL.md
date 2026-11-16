@@ -1,11 +1,11 @@
 ---
 name: system-terminal
-description: Operate the session-shared System Terminal MCP for interactive programs and for work the user should watch or take over together. For one-off commands, use the bash tool instead.
+description: Operate the session-shared System Terminal MCP for interactive programs and for work the user should watch or operate together. For one-off commands, use the bash tool instead.
 ---
 
 # 系统终端 MCP
 
-分工：一次性命令（执行完就结束、不需要交互）用 bash 工具；交互式程序，或需要用户一起看、一起接管的任务，用系统终端。
+分工：一次性命令（执行完就结束、不需要交互）用 bash 工具；交互式程序，或需要用户一起看、一起操作的任务，用系统终端。
 
 先调用 `terminal_profiles` 了解平台与可用 Shell；然后调用 `terminal_list`。复用终端前先用
 `terminal_read` 查看它是否在执行任务或等待输入。需要新的 Shell 时调用 `terminal_open`；它会自动显示在
