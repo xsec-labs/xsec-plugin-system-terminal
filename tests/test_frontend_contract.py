@@ -105,7 +105,9 @@ class FrontendContractTests(unittest.TestCase):
         manifest = json.loads((PLUGIN_ROOT / "plugin.json").read_text(encoding="utf-8"))
         codex = json.loads((PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], "2.1.0")
-        self.assertEqual(manifest["extensions"]["com.xsec.desktop"]["schemaVersion"], 2)
+        desktop = manifest["extensions"]["com.xsec.desktop"]
+        self.assertEqual(desktop["schemaVersion"], 3)
+        self.assertEqual(desktop["entrypoints"]["native"], "builtin:com.xsec.system-terminal")
         agent_tools = manifest["extensions"]["com.xsec.desktop"]["contributes"]["agentTools"]
         self.assertEqual(
             sorted(tool["mcpTool"] for tool in agent_tools.values()),
@@ -154,6 +156,17 @@ class FrontendContractTests(unittest.TestCase):
         activation = self.source.split("export function activate(host)", 1)[1]
         self.assertIn('return terminalSettings(host)', activation)
         self.assertIn('return terminalSurface(host)', activation)
+
+    def test_terminal_calls_send_the_open_lease_and_read_from_the_cursor(self) -> None:
+        """open returns the control lease; write, resize and close must send it back, and read must advance."""
+
+        self.assertIn("state.control = handle.control", self.source)
+        self.assertIn('host.request("xsec.terminal.write", { terminalId, control, data })', self.source)
+        self.assertIn("terminalId, control,\n    ...terminalSize(state),", self.source)
+        self.assertEqual(self.source.count('"xsec.terminal.close", { terminalId, control })'), 2)
+        self.assertIn('"xsec.terminal.close", { terminalId: handle.terminal_id, control: handle.control }', self.source)
+        self.assertIn("{ terminalId, cursor: state.cursor }", self.source)
+        self.assertIn("state.cursor = data.next_cursor", self.source)
 
     def test_source_respects_workspace_complexity_limits(self) -> None:
         lines = self.source.splitlines()

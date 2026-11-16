@@ -7,7 +7,7 @@
   "license": "MIT",
   "extensions": {
     "com.xsec.desktop": {
-      "schemaVersion": 2,
+      "schemaVersion": 3,
       "displayName": "系统终端",
       "publisher": "XSEC",
       "icon": "terminal",
@@ -16,7 +16,8 @@
         "pluginApi": "^1.7.0"
       },
       "entrypoints": {
-        "frontend": "./com.xsec.desktop/frontend/index.js"
+        "frontend": "./com.xsec.desktop/frontend/index.js",
+        "native": "builtin:com.xsec.system-terminal"
       },
       "activationEvents": ["onWorkspaceTool:system-terminal", "onSettingsPage:system-terminal", "onAgentTool:terminal_open"],
       "contributes": {
