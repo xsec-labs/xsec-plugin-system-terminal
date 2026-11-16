@@ -104,9 +104,28 @@ class FrontendContractTests(unittest.TestCase):
     def test_manifest_versions_and_frontend_methods_match(self) -> None:
         manifest = json.loads((PLUGIN_ROOT / "plugin.json").read_text(encoding="utf-8"))
         codex = json.loads((PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "2.0.1")
+        self.assertEqual(manifest["version"], "2.1.0")
         self.assertEqual(manifest["extensions"]["com.xsec.desktop"]["schemaVersion"], 2)
-        self.assertNotIn("agentTools", manifest["extensions"]["com.xsec.desktop"]["contributes"])
+        agent_tools = manifest["extensions"]["com.xsec.desktop"]["contributes"]["agentTools"]
+        self.assertEqual(
+            sorted(tool["mcpTool"] for tool in agent_tools.values()),
+            sorted(
+                [
+                    "terminal_close",
+                    "terminal_control_acquire",
+                    "terminal_control_release",
+                    "terminal_control_status",
+                    "terminal_list",
+                    "terminal_open",
+                    "terminal_profiles",
+                    "terminal_read",
+                    "terminal_resize",
+                    "terminal_reveal",
+                    "terminal_write",
+                ]
+            ),
+        )
+        self.assertEqual({tool["mcpServer"] for tool in agent_tools.values()}, {"system-terminal"})
         self.assertEqual(manifest["version"], codex["version"])
         methods = manifest["extensions"]["com.xsec.desktop"]["frontendApi"]["methods"]
         requested = set(re.findall(r'host\.request\("([^"]+)"', self.source))
