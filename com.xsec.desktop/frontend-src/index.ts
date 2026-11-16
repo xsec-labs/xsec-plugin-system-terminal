@@ -53,7 +53,8 @@ const FALLBACK_TEXT = "#f4f4f5";
 const FONT_FAMILY = 'ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace';
 
 function channels(color: string): [number, number, number] | undefined {
-  const hex = /^#([0-9a-f]{6})$/i.exec(color.trim())?.[1];
+  const short = /^#([0-9a-f]{3})$/i.exec(color.trim())?.[1];
+  const hex = short ? [...short].map(digit => digit + digit).join("") : /^#([0-9a-f]{6})$/i.exec(color.trim())?.[1];
   if (!hex) return undefined;
   return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
 }
