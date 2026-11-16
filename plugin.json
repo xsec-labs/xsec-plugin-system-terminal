@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "com.xsec.system-terminal",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "XSEC workspace system terminal",
   "author": { "name": "XSEC" },
   "license": "MIT",
@@ -18,7 +18,7 @@
       "entrypoints": {
         "frontend": "./com.xsec.desktop/frontend/index.js"
       },
-      "activationEvents": ["onWorkspaceTool:system-terminal", "onSettingsPage:system-terminal"],
+      "activationEvents": ["onWorkspaceTool:system-terminal", "onSettingsPage:system-terminal", "onAgentTool:terminal_open"],
       "contributes": {
         "workspaceTools": {
           "system-terminal": {
@@ -43,11 +43,126 @@
             "icon": "terminal",
             "order": 120
           }
-        }
+        },
+    "agentTools": {
+      "terminal-profiles": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_profiles",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-open": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_open",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-list": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_list",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-read": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_read",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-write": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_write",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-resize": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_resize",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-reveal": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_reveal",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-close": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_close",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-control-status": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_control_status",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-control-acquire": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_control_acquire",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      },
+      "terminal-control-release": {
+        "mcpServer": "system-terminal",
+        "mcpTool": "terminal_control_release",
+        "workspaceToolId": "system-terminal",
+        "permission": "terminal.shell:session.agent",
+        "roles": [
+          "parent",
+          "sub"
+        ]
+      }
+    }
       },
       "permissions": {
         "workspace.session.read": {},
         "terminal.shell:session.cwd": {},
+        "terminal.shell:session.agent": {},
+        "mcp.servers.register": {},
+        "native.execute": {},
         "pluginData.read": {},
         "pluginData.write": {}
       },
