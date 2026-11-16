@@ -101,7 +101,7 @@ class FrontendContractTests(unittest.TestCase):
         dispose = dispose.split("function terminalSurface", 1)[0]
         self.assertLess(dispose.index("cancelAnimationFrame(state.inputFrame)"), dispose.index("state.inputFrame = 0"))
 
-    def test_manifest_versions_and_frontend_methods_match(self) -> None:
+    def test_manifest_declares_every_method_the_frontend_and_native_panel_call(self) -> None:
         manifest = json.loads((PLUGIN_ROOT / "plugin.json").read_text(encoding="utf-8"))
         codex = json.loads((PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], "2.1.0")
@@ -131,7 +131,24 @@ class FrontendContractTests(unittest.TestCase):
         self.assertEqual(manifest["version"], codex["version"])
         methods = manifest["extensions"]["com.xsec.desktop"]["frontendApi"]["methods"]
         requested = set(re.findall(r'host\.request\("([^"]+)"', self.source))
-        self.assertEqual(requested, set(methods))
+        self.assertLessEqual(requested, set(methods))
+        # The native panel and the Agent tools call these Host methods too; the Broker refuses any not declared here.
+        panel_and_agent = {
+            "xsec.terminal.profiles",
+            "xsec.terminal.open",
+            "xsec.terminal.list",
+            "xsec.terminal.read",
+            "xsec.terminal.write",
+            "xsec.terminal.resize",
+            "xsec.terminal.attach",
+            "xsec.terminal.detach",
+            "xsec.terminal.reveal",
+            "xsec.terminal.close",
+            "xsec.terminal.control.status",
+            "xsec.terminal.control.acquire",
+            "xsec.terminal.control.release",
+        }
+        self.assertLessEqual(panel_and_agent, set(methods))
 
     def test_plugin_api_lower_bound_covers_terminal_mutations(self) -> None:
         """Desktop refuses a Plugin API range below 1.7.0 when a terminal mutation is declared.

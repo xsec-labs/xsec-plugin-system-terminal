@@ -174,7 +174,15 @@
         "xsec.terminal.resize": { "capability": "terminal.shell", "binding": "session" },
         "xsec.terminal.close": { "capability": "terminal.shell", "binding": "session" },
         "xsec.terminal.settings.get": { "capability": "pluginData.read", "binding": "plugin" },
-        "xsec.terminal.settings.set": { "capability": "pluginData.write", "binding": "plugin" }
+        "xsec.terminal.settings.set": { "capability": "pluginData.write", "binding": "plugin" },
+        "xsec.terminal.profiles": { "capability": "terminal.shell", "binding": "session" },
+        "xsec.terminal.list": { "capability": "terminal.shell", "binding": "session" },
+        "xsec.terminal.reveal": { "capability": "terminal.shell", "binding": "session" },
+        "xsec.terminal.attach": { "capability": "terminal.shell", "binding": "session" },
+        "xsec.terminal.detach": { "capability": "terminal.shell", "binding": "session" },
+        "xsec.terminal.control.status": { "capability": "terminal.shell", "binding": "session" },
+        "xsec.terminal.control.acquire": { "capability": "terminal.shell", "binding": "session" },
+        "xsec.terminal.control.release": { "capability": "terminal.shell", "binding": "session" }
       } }
     }
   }
