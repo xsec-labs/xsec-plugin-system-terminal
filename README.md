@@ -19,10 +19,12 @@
 `terminal_control_status`、`terminal_control_acquire`、`terminal_control_release`。
 参数 schema 以 MCP `tools/list` 为准。
 
-`terminal_open` 返回完整 control lease。write、resize、close 携带动作触发时的租约；
-显式 acquire、takeover 和 release 管理控制权，过期租约在副作用前被 Host 拒绝。
-observer 通过 attach 与独立 cursor read 读取；界面卸载释放控制并 detach，PTY 继续运行。
+`terminal_open` 返回固定的 `control` 引用。Desktop 主机已经没有控制租约：write、resize、close
+按 schema 携带该引用，但主机不再据它校验；`terminal_control_status`、`terminal_control_acquire`、
+`terminal_control_release` 是过渡期工具（申请永远成功，释放没有效果），将在主机删除对应方法的版本里一并移除。
+observer 通过 attach 与独立 cursor read 读取；界面卸载 detach，PTY 继续运行。
 close 终止 PTY；会话结束、插件撤销或 Runtime 退出按 Host 生命周期回收资源。
+结束的终端从面板列表消失，但仍可由 `terminal_list` 列出、由 `terminal_read` 读到输出，直到 `terminal_open` 在每会话 8 条已满时把它淘汰（先淘汰最早打开的已结束条目）。
 
 ## 构建与验证
 
