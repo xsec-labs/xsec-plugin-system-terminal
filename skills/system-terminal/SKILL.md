@@ -29,8 +29,8 @@ description: Operate the session-shared System Terminal MCP safely, including in
 
 终端结束（Shell 退出或被 `terminal_close` 终止）后，面板列表里不再显示它，但 `terminal_list` 仍会列出它
 （`state` 为 `exited` 或 `terminated`），`terminal_read` 仍能读到缓存的输出，包括最后输出；`terminal_write`
-会失败。需要看结束前的输出就在新开终端之前读取：每个会话最多保留 8 个终端条目，满了之后最早结束的条目
-会被淘汰，淘汰后无法再读。需要新的 Shell 时调用 `terminal_open`。任务结束时说明保留的后台进程或已终止的终端。
+会失败。需要看结束前的输出就在新开终端之前读取：每个会话最多保留 8 个终端条目，`terminal_open` 遇到已满时会淘汰
+最早打开的已结束条目，淘汰后无法再读。需要新的 Shell 时调用 `terminal_open`。任务结束时说明保留的后台进程或已终止的终端。
 
 工具的完整参数 schema 以 MCP `tools/list` 为准。交互细节与平台注意事项见
 [references/interactive.md](references/interactive.md)。

@@ -24,7 +24,7 @@
 `terminal_control_release` 是过渡期工具（申请永远成功，释放没有效果），将在主机删除对应方法的版本里一并移除。
 observer 通过 attach 与独立 cursor read 读取；界面卸载 detach，PTY 继续运行。
 close 终止 PTY；会话结束、插件撤销或 Runtime 退出按 Host 生命周期回收资源。
-结束的终端从面板列表消失，但仍可由 `terminal_list` 列出、由 `terminal_read` 读到输出，直到被每会话 8 条的上限淘汰。
+结束的终端从面板列表消失，但仍可由 `terminal_list` 列出、由 `terminal_read` 读到输出，直到 `terminal_open` 在每会话 8 条已满时把它淘汰（先淘汰最早打开的已结束条目）。
 
 ## 构建与验证
 
