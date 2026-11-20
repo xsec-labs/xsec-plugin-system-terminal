@@ -1,15 +1,15 @@
 # 系统终端 MCP Host 边界
 
 插件拥有 manifest、MCP 描述、Skill、xterm frontend 和原生 stdio sidecar。Runtime Host
-统一拥有会话身份、PTY、Shell profile、启动目录、进程组、控制租约和审计。
+统一拥有会话身份、PTY、Shell profile、启动目录、进程组和审计（终端已没有控制租约，`control` 是过渡期的固定引用）。
 插件在标准 sandbox 中加载前端，并通过受限的 `xsec.terminal.*` 契约访问会话资源。
 
 每次 MCP `tools/call` 先经 `xsec.terminal.context` 核验短期 Host RPC 令牌、冻结制品摘要、
 调用角色、任务 lease 与工具允许列表。缺失或失效的上下文显式失败；write、resize、close
-还必须携带当前有效 control lease。initialize 与 tools/list 只提供协议和工具信息。
+仍按 schema 携带 `control` 引用，主机不再据它校验。initialize 与 tools/list 只提供协议和工具信息。
 
 `terminal.shell:session.agent`、`mcp.servers.register` 和 `native.execute` 进入安装及升级
-确认流程。observer 的独立 cursor read 保留输出；界面卸载释放控制并 detach，close 终止 PTY。
+确认流程。observer 的独立 cursor read 保留输出；界面卸载 detach，close 终止 PTY。
 会话结束、插件撤销、卸载和 Runtime 退出由 Host 回收资源。
 
 默认 Shell 配置位于“设置 → 插件 → 系统终端”，影响后续新建 PTY。Windows 使用当前可用的

@@ -8,43 +8,43 @@ const TOOLS: &[(&str, &str)] = &[
     ),
     (
         "terminal_open",
-        "Create a session-shared PTY and reveal it in the user bottom dock.",
+        "Create a session-shared PTY, add it to the terminal list in the user bottom dock, and return the `control` reference to pass back to write, resize and close.",
     ),
     (
         "terminal_list",
-        "List all system terminals in the current session.",
+        "List the system terminals of the current session, including ended ones (state exited or terminated) that have not yet been evicted.",
     ),
     (
         "terminal_read",
-        "Read non-consuming UTF-8 terminal output from an independent cursor.",
+        "Read non-consuming UTF-8 terminal output from an independent cursor; works on ended terminals until they are evicted.",
     ),
     (
         "terminal_write",
-        "Write raw terminal input, including control characters, without retries.",
+        "Write raw terminal input, including control characters, without retries; fails on an ended terminal.",
     ),
     (
         "terminal_resize",
-        "Resize the PTY using the exact control lease.",
+        "Resize the PTY; pass the `control` reference returned by terminal_open.",
     ),
     (
         "terminal_control_status",
-        "Inspect the terminal controller and current generation.",
+        "Transitional: terminals no longer have a control lease, so this reports no controller. Not needed before writing.",
     ),
     (
         "terminal_control_acquire",
-        "Acquire terminal control; takeover must be explicitly selected.",
+        "Transitional: always succeeds and returns the fixed `control` reference; there is no lease to contend for.",
     ),
     (
         "terminal_control_release",
-        "Release the exact terminal control lease while preserving the PTY.",
+        "Transitional: always succeeds and has no effect; the PTY keeps running.",
     ),
     (
         "terminal_reveal",
-        "Reveal an existing hidden session terminal in the user bottom dock.",
+        "Reveal the terminal panel with an existing session terminal in the user bottom dock.",
     ),
     (
         "terminal_close",
-        "Explicitly terminate a terminal process and return its final state.",
+        "Explicitly terminate a terminal process and return its final state; the ended terminal stays listed and readable until evicted.",
     ),
 ];
 
