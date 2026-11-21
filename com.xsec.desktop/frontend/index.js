@@ -116,9 +116,9 @@ function clearPoll(state) { if (state.pollTimer) clearTimeout(state.pollTimer); 
 async function failTerminal(host, state, message) {
   if (state.failed) return;
   state.failed = true; state.reading = false; state.writing = false; state.inputBuffer = ""; clearPoll(state);
-  const generation = state.generation, terminalId = state.terminalId, control = state.control; state.terminalId = ""; state.control = undefined;
+  const generation = state.generation, terminalId = state.terminalId; state.terminalId = "";
   let closeError;
-  try { if (terminalId) await host.request("xsec.terminal.close", { terminalId, control }); }
+  try { if (terminalId) await host.request("xsec.terminal.close", { terminalId }); }
   catch (error) { closeError = error; }
   if (generation !== state.generation) return;
   report(state, closeError ? `${message}；关闭终端失败：${errorText(closeError)}` : message);
@@ -165,10 +165,10 @@ async function openTerminal(host, state, generation) {
     if (generation !== state.generation) return;
     const handle = await host.request("xsec.terminal.open", terminalSize(state));
     if (generation !== state.generation) {
-      await host.request("xsec.terminal.close", { terminalId: handle.terminal_id, control: handle.control });
+      await host.request("xsec.terminal.close", { terminalId: handle.terminal_id });
       return;
     }
-    state.terminalId = handle.terminal_id; state.control = handle.control; state.cursor = undefined;
+    state.terminalId = handle.terminal_id; state.cursor = undefined;
     state.controls.screen.focus();
     resizeTerminal(host, state);
     schedulePoll(host, state, 0);
@@ -186,11 +186,11 @@ function scheduleWrite(host, state) {
 }
 async function flushWrite(host, state) {
   if (state.failed || state.writing || !state.inputBuffer || !state.terminalId) return;
-  const generation = state.generation, terminalId = state.terminalId, control = state.control, data = state.inputBuffer;
+  const generation = state.generation, terminalId = state.terminalId, data = state.inputBuffer;
   state.inputBuffer = "";
   state.writing = true;
   try {
-    await host.request("xsec.terminal.write", { terminalId, control, data });
+    await host.request("xsec.terminal.write", { terminalId, data });
   } catch (error) {
     if (isCurrentTerminal(state, generation, terminalId)) {
       await failTerminal(host, state, `写入终端失败：${errorText(error)}`);
@@ -220,9 +220,9 @@ function keyInput(host, state, event) {
 function resizeTerminal(host, state) {
   if (state.failed || !state.terminalId) return;
   const generation = state.generation, terminalId = state.terminalId;
-  const resizeGeneration = ++state.resizeGeneration, control = state.control;
+  const resizeGeneration = ++state.resizeGeneration;
   void host.request("xsec.terminal.resize", {
-    terminalId, control,
+    terminalId,
     ...terminalSize(state),
   }).catch(async (error) => {
     if (resizeGeneration === state.resizeGeneration && isCurrentTerminal(state, generation, terminalId)) {
@@ -254,9 +254,9 @@ function buildTerminal(host, state) {
   void state.opening.catch(() => {});
 }
 async function disposeTerminal(host, state) {
-  const terminalId = state.terminalId, control = state.control, opening = state.opening, theme = state.theme;
+  const terminalId = state.terminalId, opening = state.opening, theme = state.theme;
   state.generation += 1;
-  state.disposed = true; state.failed = false; state.terminalId = ""; state.control = undefined;
+  state.disposed = true; state.failed = false; state.terminalId = "";
   state.reading = false; state.writing = false; state.inputBuffer = "";
   clearPoll(state);
   clearTimeout(state.resizeTimer);
@@ -267,13 +267,13 @@ async function disposeTerminal(host, state) {
   state.theme = undefined;
   document.removeEventListener("visibilitychange", state.visibility);
   if (opening) await opening;
-  if (terminalId) await host.request("xsec.terminal.close", { terminalId, control });
+  if (terminalId) await host.request("xsec.terminal.close", { terminalId });
 }
 function terminalSurface(host) {
   const state = {
     root: undefined, controls: {}, terminalId: "", disposed: false, failed: false,
     reading: false, writing: false, inputBuffer: "", pollTimer: 0,
-    resizeTimer: 0, resizeGeneration: 0, inputFrame: 0, observer: undefined, visibility: undefined, control: undefined, cursor: undefined,
+    resizeTimer: 0, resizeGeneration: 0, inputFrame: 0, observer: undefined, visibility: undefined, cursor: undefined,
     theme: undefined, opening: undefined, generation: 0,
   };
   return {

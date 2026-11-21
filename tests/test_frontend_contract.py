@@ -114,9 +114,6 @@ class FrontendContractTests(unittest.TestCase):
             sorted(
                 [
                     "terminal_close",
-                    "terminal_control_acquire",
-                    "terminal_control_release",
-                    "terminal_control_status",
                     "terminal_list",
                     "terminal_open",
                     "terminal_profiles",
@@ -144,16 +141,15 @@ class FrontendContractTests(unittest.TestCase):
             "xsec.terminal.detach",
             "xsec.terminal.reveal",
             "xsec.terminal.close",
-            "xsec.terminal.control.status",
-            "xsec.terminal.control.acquire",
-            "xsec.terminal.control.release",
         }
         self.assertLessEqual(panel_and_agent, set(methods))
 
-    def test_plugin_api_lower_bound_covers_terminal_mutations(self) -> None:
-        """Desktop refuses a Plugin API range below 1.7.0 when a terminal mutation is declared.
+    def test_plugin_api_lower_bound_excludes_lease_era_hosts(self) -> None:
+        """The control-less calls need a 1.9.0 host.
 
-        Mirrors the host rule: write, resize and close, and any xsec.terminal.control.* method.
+        Hosts at Plugin API 1.8.0 (Desktop 0.3.8 among them) still require a control lease on
+        write, resize and close, so the lower bound must exclude them. The host rule that
+        needs at least 1.7.0 for terminal mutations is a weaker check and still holds.
         """
 
         desktop = json.loads((PLUGIN_ROOT / "plugin.json").read_text(encoding="utf-8"))["extensions"]["com.xsec.desktop"]
@@ -161,27 +157,26 @@ class FrontendContractTests(unittest.TestCase):
             method
             for method in desktop["frontendApi"]["methods"]
             if method in {"xsec.terminal.write", "xsec.terminal.resize", "xsec.terminal.close"}
-            or method.startswith("xsec.terminal.control.")
         }
         self.assertTrue(mutations, "the frontend must declare at least one terminal mutation")
         plugin_api = desktop["engines"]["pluginApi"]
         self.assertRegex(plugin_api, r"^\^\d+\.\d+\.\d+$")
         lower = tuple(int(part) for part in plugin_api[1:].split("."))
-        self.assertGreaterEqual(lower, (1, 7, 0))
+        self.assertGreaterEqual(lower, (1, 9, 0))
 
     def test_activation_returns_explicit_lifecycle_helpers(self) -> None:
         activation = self.source.split("export function activate(host)", 1)[1]
         self.assertIn('return terminalSettings(host)', activation)
         self.assertIn('return terminalSurface(host)', activation)
 
-    def test_terminal_calls_send_the_open_lease_and_read_from_the_cursor(self) -> None:
-        """open returns the control lease; write, resize and close must send it back, and read must advance."""
+    def test_terminal_calls_send_no_lease_and_read_from_the_cursor(self) -> None:
+        """Terminal calls carry no control lease; read must advance from the cursor."""
 
-        self.assertIn("state.control = handle.control", self.source)
-        self.assertIn('host.request("xsec.terminal.write", { terminalId, control, data })', self.source)
-        self.assertIn("terminalId, control,\n    ...terminalSize(state),", self.source)
-        self.assertEqual(self.source.count('"xsec.terminal.close", { terminalId, control })'), 2)
-        self.assertIn('"xsec.terminal.close", { terminalId: handle.terminal_id, control: handle.control }', self.source)
+        self.assertIsNone(re.search(r"\bcontrol\b", self.source))
+        self.assertIn('host.request("xsec.terminal.write", { terminalId, data })', self.source)
+        self.assertIn("terminalId,\n    ...terminalSize(state),", self.source)
+        self.assertEqual(self.source.count('"xsec.terminal.close", { terminalId })'), 2)
+        self.assertIn('"xsec.terminal.close", { terminalId: handle.terminal_id }', self.source)
         self.assertIn("{ terminalId, cursor: state.cursor }", self.source)
         self.assertIn("state.cursor = data.next_cursor", self.source)
 
