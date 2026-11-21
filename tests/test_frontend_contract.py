@@ -164,6 +164,13 @@ class FrontendContractTests(unittest.TestCase):
         lower = tuple(int(part) for part in plugin_api[1:].split("."))
         self.assertGreaterEqual(lower, (1, 9, 0))
 
+    def test_manifest_declares_no_control_methods(self) -> None:
+        """The control lease is gone: no frontend method and no Agent tool may name it."""
+
+        desktop = json.loads((PLUGIN_ROOT / "plugin.json").read_text(encoding="utf-8"))["extensions"]["com.xsec.desktop"]
+        self.assertEqual([m for m in desktop["frontendApi"]["methods"] if m.startswith("xsec.terminal.control.")], [])
+        self.assertEqual([n for n, b in desktop["contributes"]["agentTools"].items() if "control" in b["mcpTool"]], [])
+
     def test_activation_returns_explicit_lifecycle_helpers(self) -> None:
         activation = self.source.split("export function activate(host)", 1)[1]
         self.assertIn('return terminalSettings(host)', activation)

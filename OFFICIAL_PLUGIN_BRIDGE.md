@@ -10,8 +10,8 @@ This package owns the signed plugin manifest, permissions and release lifecycle.
 XSEC Desktop 的深色或浅色外观。详见
 [插件设置规范](https://github.com/xsec-labs/xsec-plugins/blob/main/docs/plugin-settings.md)。
 
-The root manifest uses Agent Plugins v1 with a `com.xsec.desktop` schema v2
-extension. System Terminal declares eleven `agentTools` for the `parent` and
+The root manifest uses Agent Plugins v1 with a `com.xsec.desktop` schema v3
+extension. System Terminal declares eight `agentTools` for the `parent` and
 `sub` roles, a stdio `mcp.json` entry and the portable `system-terminal` Skill.
 Shell selection, PTY lifecycle, working directory, process execution, and audit
 stay behind the Desktop capability and session boundary.
