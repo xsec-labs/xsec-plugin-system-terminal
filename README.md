@@ -21,8 +21,8 @@ Source repository: <https://github.com/xsec-labs/xsec-plugin-system-terminal>
 
 ## Agent 工具与 Go sidecar
 
-- 插件声明 11 个 Agent 工具（`terminal_profiles` 至 `terminal_close`），绑定 `parent` 与 `sub`
-  角色。工具名称与说明和此前的 Rust 版本一致。
+- 插件声明 8 个 Agent 工具（`terminal_profiles` 至 `terminal_close`），绑定 `parent` 与 `sub`
+  角色。没有控制租约工具：Desktop B1 起终端没有控制租约。
 - `mcp.json` 启动随包分发的 stdio 服务 `./bin/system-terminal-mcp`。它由 XSEC Desktop 仓库的
   `go/cmd/system-terminal-mcp` 以 Go 编译，本仓库不含 Rust 或 Cargo 源码。
 - 构建制品：在 XSEC Desktop 仓库中运行
