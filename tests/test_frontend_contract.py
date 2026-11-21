@@ -18,14 +18,16 @@ EXPECTED_TOOLS = {
     "terminal-resize": "terminal_resize",
     "terminal-reveal": "terminal_reveal",
     "terminal-close": "terminal_close",
-    "terminal-control-status": "terminal_control_status",
-    "terminal-control-acquire": "terminal_control_acquire",
-    "terminal-control-release": "terminal_control_release",
 }
-CONTROL_MUTATIONS = {
+# Terminals have no control lease: these mutations carry the terminal id (and data or size), never a control.
+MUTATIONS = {
     "xsec.terminal.write",
     "xsec.terminal.resize",
     "xsec.terminal.close",
+}
+REMOVED_CONTROL_METHODS = {
+    "xsec.terminal.control.status",
+    "xsec.terminal.control.acquire",
     "xsec.terminal.control.release",
 }
 
@@ -36,11 +38,11 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
         self.mcp = json.loads((ROOT / "mcp.json").read_text(encoding="utf-8"))
         self.source = FRONTEND_SOURCE.read_text(encoding="utf-8")
 
-    def test_plugin_declares_one_mcp_one_skill_and_eleven_parent_sub_tools(self) -> None:
+    def test_plugin_declares_one_mcp_one_skill_and_eight_parent_sub_tools(self) -> None:
         extension = self.manifest["extensions"]["com.xsec.desktop"]
         metadata = json.loads((ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(self.manifest["name"], "com.xsec.system-terminal")
-        self.assertEqual(self.manifest["version"], "4.1.0")
+        self.assertEqual(self.manifest["version"], "4.2.0")
         self.assertEqual(metadata["name"], self.manifest["name"])
         self.assertEqual(metadata["version"], self.manifest["version"])
         self.assertEqual(extension["displayName"], "系统终端 MCP")
@@ -71,7 +73,6 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
         self.assertIn("result.truncated", self.source)
         dispose = self.source.split("async dispose()", 1)[1]
         self.assertIn('call("xsec.terminal.detach", { terminalId })', dispose)
-        self.assertIn('call("xsec.terminal.control.release",', dispose)
         self.assertNotIn('call("xsec.terminal.close"', dispose)
 
     def test_frontend_uses_host_validated_terminal_operations(self) -> None:
@@ -82,16 +83,16 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
         # This is a source contract gate; Host/PTY/browser tests prove execution.
         for method_expression, payload in re.findall(r'call\(([^,\n]+),\s*\{([^{}]*)\}\)', self.source):
             targets = set(re.findall(r'"(xsec\.terminal\.[^"]+)"', method_expression))
-            mutations = targets & CONTROL_MUTATIONS
+            mutations = targets & MUTATIONS
             if mutations:
                 self.assertRegex(payload, r"\bterminalId\b")
-                self.assertRegex(payload, r"\bcontrol\s*:")
+                self.assertNotRegex(payload, r"\bcontrol\b")
                 checked.update(mutations)
-        self.assertEqual(checked, CONTROL_MUTATIONS)
-        for method in CONTROL_MUTATIONS | {
-            "xsec.terminal.control.acquire", "xsec.terminal.control.status"
-        }:
+        self.assertEqual(checked, MUTATIONS)
+        for method in MUTATIONS:
             self.assertEqual(declared[method], {"capability": "terminal.shell", "binding": "session"})
+        self.assertFalse(REMOVED_CONTROL_METHODS & set(declared))
+        self.assertNotIn("control", re.sub(r"disableStdin|terminal\.control", "", self.source).replace("Control", ""))
         self.assertIn('call("xsec.terminal.reveal", { terminalId })', self.source)
 
     def test_built_frontend_and_skill_follow_the_declared_contract(self) -> None:
@@ -101,8 +102,7 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
         self.assertTrue(skill.startswith("---\nname: system-terminal\n"))
         self.assertIn("tools/list", skill)
         self.assertIn("terminal_reveal", skill)
-        self.assertIn("terminal_control_acquire", skill)
-        self.assertIn("terminal_control_release", skill)
+        self.assertNotIn("terminal_control", skill)
 
 
 if __name__ == "__main__":

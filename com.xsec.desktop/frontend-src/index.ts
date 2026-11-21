@@ -30,35 +30,13 @@ function terminalSize(terminal: Terminal): { cols: number; rows: number } {
   return { cols: Math.max(MIN_COLS, terminal.cols), rows: Math.max(MIN_ROWS, terminal.rows) };
 }
 
-type Control = {
-  version: 1; instanceId: string; accountContext: string; epoch: number; kind: "terminal";
-  resourceId: string; clientId: string; leaseId: string; generation: number;
-};
-
-function terminalControl(value: unknown, terminalId: string): Control {
-  if (!value || typeof value !== "object") throw new Error("TERMINAL_CONTROL_REQUIRED");
-  const control = value as Control;
-  if (control.version !== 1 || control.kind !== "terminal" || control.resourceId !== terminalId
-    || !Number.isSafeInteger(control.epoch) || control.epoch < 1
-    || !Number.isSafeInteger(control.generation) || control.generation < 1
-    || ![control.instanceId, control.accountContext, control.clientId, control.leaseId].every(value => typeof value === "string" && value.length > 0)) {
-    throw new Error("TERMINAL_CONTROL_INVALID");
-  }
-  return Object.freeze({ ...control });
-}
-
 function terminalView(host: Host) {
   let terminalId = "";
-  let control: Control | undefined;
-  let controlPending = false;
-  let controlEnded = false;
+  let closing = false;
+  let ended = false;
   let inputQueue = Promise.resolve();
   let resizeQueue = Promise.resolve();
   let lastSize: { cols: number; rows: number } | undefined;
-  let controlText: HTMLSpanElement | undefined;
-  let acquireButton: HTMLButtonElement | undefined;
-  let takeoverButton: HTMLButtonElement | undefined;
-  let releaseButton: HTMLButtonElement | undefined;
   let closeButton: HTMLButtonElement | undefined;
   let cursor: number | undefined;
   let stopped = false;
@@ -79,61 +57,34 @@ function terminalView(host: Host) {
   const status = (value: string) => { if (stateText) stateText.textContent = value; };
   const call = (method: string, params: Record<string, unknown>) => host.request(method, params);
 
-  const renderControl = () => {
-    if (terminal) terminal.options.disableStdin = !control || controlPending || controlEnded;
-    if (controlText) controlText.textContent = controlEnded ? "已结束" : control ? "正在控制" : "观察中";
-    if (acquireButton) acquireButton.disabled = !terminalId || Boolean(control) || controlPending || controlEnded;
-    if (takeoverButton) takeoverButton.disabled = !terminalId || Boolean(control) || controlPending || controlEnded;
-    if (releaseButton) releaseButton.disabled = !control || controlPending || controlEnded;
-    if (closeButton) closeButton.disabled = !control || controlPending || controlEnded;
-  };
-  const mutationFailed = (reason: unknown, reference?: Control) => {
-    if (!reference || control?.leaseId === reference.leaseId) control = undefined;
-    renderControl();
-    console.warn("system-terminal.control-operation.failed", { terminalId });
-    showError(reason);
+  const renderState = () => {
+    if (terminal) terminal.options.disableStdin = !terminalId || ended;
+    if (closeButton) closeButton.disabled = !terminalId || closing || ended;
   };
   const resize = () => {
     if (!terminal || !fit || stopped) return;
     fit.fit();
     const id = terminalId;
-    const reference = control;
     const size = terminalSize(terminal);
-    if (!id || !reference || controlPending || (lastSize?.cols === size.cols && lastSize.rows === size.rows)) return;
+    if (!id || ended || (lastSize?.cols === size.cols && lastSize.rows === size.rows)) return;
     lastSize = size;
     resizeQueue = resizeQueue.then(async () => {
-      if (stopped || control?.leaseId !== reference.leaseId) return;
-      await call("xsec.terminal.resize", { terminalId: id, ...size, control: reference });
-    }).catch(reason => mutationFailed(reason, reference));
+      if (stopped || ended) return;
+      await call("xsec.terminal.resize", { terminalId: id, ...size });
+    }).catch(showError);
   };
-  const changeControl = async (action: "acquire" | "takeover" | "release" | "close") => {
+  const closeTerminal = async () => {
     const id = terminalId;
-    const reference = control;
-    if (!id || controlPending || stopped) return;
-    controlPending = true;
-    renderControl();
+    if (!id || closing || ended || stopped) return;
+    closing = true;
+    renderState();
     try {
-      if (action === "acquire" || action === "takeover") {
-        const result = await call("xsec.terminal.control.acquire", { terminalId: id, takeover: action === "takeover" });
-        const acquired = terminalControl(result.control, id);
-        if (stopped) {
-          await call("xsec.terminal.control.release", { terminalId: id, control: acquired });
-          return;
-        }
-        control = acquired;
-        lastSize = undefined;
-        console.info("system-terminal.control.acquired", { terminalId: id, generation: acquired.generation });
-      } else {
-        if (!reference) throw new Error("TERMINAL_CONTROL_REQUIRED");
-        control = undefined;
-        await call(action === "release" ? "xsec.terminal.control.release" : "xsec.terminal.close", { terminalId: id, control: reference });
-        controlEnded = action === "close";
-        console.info("system-terminal.control.completed", { terminalId: id, action });
-      }
+      await call("xsec.terminal.close", { terminalId: id });
+      ended = true;
+      console.info("system-terminal.closed", { terminalId: id });
       if (error) error.textContent = "";
-    } catch (reason) { mutationFailed(reason); }
-    finally { controlPending = false; renderControl(); }
-    resize();
+    } catch (reason) { showError(reason); }
+    finally { closing = false; renderState(); }
   };
   const read = async () => {
     if (stopped || reading || !terminalId || !terminal) return;
@@ -154,13 +105,7 @@ function terminalView(host: Host) {
       cursor = result.next_cursor;
       status(result.state === "running" ? terminalId : `${terminalId} (${result.state})`);
       if (result.state !== "running") {
-        control = undefined; controlEnded = true; renderControl(); return;
-      }
-      if (result.has_more) { queueMicrotask(() => void read()); return; }
-      const observed = await call("xsec.terminal.control.status", { terminalId });
-      if (stopped) return;
-      if (control && observed.control?.leaseId !== control.leaseId) {
-        control = undefined; renderControl();
+        ended = true; renderState(); return;
       }
       queueMicrotask(() => void read());
     } catch (reason) {
@@ -175,15 +120,12 @@ function terminalView(host: Host) {
       ? await call("xsec.terminal.attach", { terminalId: existing })
       : await call("xsec.terminal.open", terminal ? terminalSize(terminal) : {});
     if (stopped) {
-      try {
-        if (handle.control) await call("xsec.terminal.control.release", { terminalId: handle.terminal_id, control: handle.control });
-      } finally { await call("xsec.terminal.detach", { terminalId: handle.terminal_id }); }
+      await call("xsec.terminal.detach", { terminalId: handle.terminal_id });
       return;
     }
     terminalId = handle.terminal_id;
-    control = handle.control ? terminalControl(handle.control, terminalId) : undefined;
-    controlEnded = Boolean(handle.state && handle.state !== "running");
-    renderControl();
+    ended = Boolean(handle.state && handle.state !== "running");
+    renderState();
     status(handle.title ?? terminalId);
     resize();
     terminal?.focus();
@@ -219,15 +161,8 @@ function terminalView(host: Host) {
         console.info("system-terminal.reveal", { terminalId });
         if (terminalId) void call("xsec.terminal.reveal", { terminalId }).catch(showError);
       };
-      controlText = document.createElement("span");
-      acquireButton = Object.assign(document.createElement("button"), { textContent: "获取控制", disabled: true });
-      acquireButton.onclick = () => void changeControl("acquire");
-      takeoverButton = Object.assign(document.createElement("button"), { textContent: "接管", disabled: true });
-      takeoverButton.onclick = () => void changeControl("takeover");
-      releaseButton = Object.assign(document.createElement("button"), { textContent: "释放控制", disabled: true });
-      releaseButton.onclick = () => void changeControl("release");
       closeButton = Object.assign(document.createElement("button"), { textContent: "终止终端", disabled: true });
-      closeButton.onclick = () => void changeControl("close");
+      closeButton.onclick = () => void closeTerminal();
       reconnectButton = Object.assign(document.createElement("button"), {
         textContent: "重新连接", disabled: true,
       });
@@ -246,18 +181,17 @@ function terminalView(host: Host) {
       error = Object.assign(document.createElement("div"), { className: "notice" });
       terminalList = Object.assign(document.createElement("div"), { className: "bar" });
       const screen = Object.assign(document.createElement("div"), { className: "screen" });
-      bar.append(stateText, controlText, list, reveal, reconnectButton, acquireButton, takeoverButton, releaseButton, closeButton); app.append(bar, terminalList, screen, error); root.append(app);
+      bar.append(stateText, list, reveal, reconnectButton, closeButton); app.append(bar, terminalList, screen, error); root.append(app);
       terminal = new Terminal({ allowProposedApi: true, disableStdin: true, cursorBlink: true, fontSize: 13, scrollback: 8_000, theme: theme({}) });
       fit = new FitAddon(); terminal.loadAddon(fit); terminal.loadAddon(new Unicode11Addon()); terminal.unicode.activeVersion = "11";
       terminal.open(screen); fit.fit();
       input = terminal.onData((data) => {
         const id = terminalId;
-        const reference = control;
-        if (!id || !reference || stopped || controlPending) return;
+        if (!id || stopped || ended) return;
         inputQueue = inputQueue.then(async () => {
-          if (stopped || control?.leaseId !== reference.leaseId) return;
-          await call("xsec.terminal.write", { terminalId: id, data, control: reference });
-        }).catch(reason => mutationFailed(reason, reference));
+          if (stopped || ended) return;
+          await call("xsec.terminal.write", { terminalId: id, data });
+        }).catch(showError);
       });
       resizeObserver = new ResizeObserver(resize); resizeObserver.observe(screen);
       themeSubscription = host.onTheme?.((value) => { if (terminal) terminal.options.theme = theme(value); resize(); });
@@ -266,14 +200,8 @@ function terminalView(host: Host) {
     },
     async dispose() {
       stopped = true; input?.dispose(); resizeObserver?.disconnect(); themeSubscription?.dispose();
-      const reference = control;
-      control = undefined;
       try {
-        if (terminalId) {
-          try {
-            if (reference) await call("xsec.terminal.control.release", { terminalId, control: reference });
-          } finally { await call("xsec.terminal.detach", { terminalId }); }
-        }
+        if (terminalId) await call("xsec.terminal.detach", { terminalId });
       } finally {
         terminal?.dispose(); terminal = undefined;
         console.debug("system-terminal.dispose", { terminalId });

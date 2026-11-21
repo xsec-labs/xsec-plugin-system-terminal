@@ -16,11 +16,9 @@ description: Operate the session-shared System Terminal MCP safely, including in
 中显式选择“重新连接”恢复 PTY 输出读取。
 
 用户、主 Agent 与子 Agent 共享相同 PTY，任何一方都可以键入，没有控制权之争：写入前先用
-`terminal_read` 确认终端空闲，以免和用户的输入交错。`terminal_open` 返回的 `control` 是固定引用；
-`terminal_write`、`terminal_resize`、`terminal_close` 按 schema 原样传回即可，Host 不再据它校验，
-也不会返回 `CONTROL_STALE` 或 `CONTROL_BUSY`。`terminal_control_status`、`terminal_control_acquire`、
-`terminal_control_release` 是过渡期工具：不需要在写入前调用，申请永远成功，释放没有效果，PTY 照常运行。
-读取输出不需要任何凭据。需要中断前台任务时写入 Ctrl+C (`\u0003`)。区分 Shell 进程结束码与某一命令的
+`terminal_read` 确认终端空闲，以免和用户的输入交错。终端没有控制租约，`terminal_write`、
+`terminal_resize`、`terminal_close` 只需要 `terminal_id`（以及数据或尺寸），不需要任何凭据，也不会返回
+`CONTROL_STALE` 或 `CONTROL_BUSY`。需要中断前台任务时写入 Ctrl+C (`\u0003`)。区分 Shell 进程结束码与某一命令的
 退出码；需要后一种时让 Shell 显式打印该状态。
 
 `terminal_open` 创建的终端会加入用户底栏终端面板的列表（面板里最多并排 4 个）；用户在面板里删除终端会
