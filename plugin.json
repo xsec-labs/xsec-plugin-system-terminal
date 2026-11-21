@@ -15,7 +15,7 @@
       "icon": "terminal",
       "engines": {
         "xsec": ">=0.1.0",
-        "pluginApi": "^1.7.0"
+        "pluginApi": "^1.9.0"
       },
       "entrypoints": {
         "frontend": "./com.xsec.desktop/frontend/index.js",

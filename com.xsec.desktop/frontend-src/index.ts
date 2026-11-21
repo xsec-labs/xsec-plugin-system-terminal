@@ -70,7 +70,13 @@ function terminalView(host: Host) {
     lastSize = size;
     resizeQueue = resizeQueue.then(async () => {
       if (stopped || ended) return;
-      await call("xsec.terminal.resize", { terminalId: id, ...size });
+      try {
+        await call("xsec.terminal.resize", { terminalId: id, ...size });
+      } catch (err) {
+        // 失败的尺寸不算已发送，下次同尺寸的 resize 仍会重试。
+        if (lastSize === size) lastSize = undefined;
+        throw err;
+      }
     }).catch(showError);
   };
   const closeTerminal = async () => {

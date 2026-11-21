@@ -46,7 +46,7 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
         self.assertEqual(metadata["name"], self.manifest["name"])
         self.assertEqual(metadata["version"], self.manifest["version"])
         self.assertEqual(extension["displayName"], "系统终端 MCP")
-        self.assertEqual(extension["engines"]["pluginApi"], "^1.7.0")
+        self.assertEqual(extension["engines"]["pluginApi"], "^1.9.0")
         self.assertTrue((ROOT / "skills/system-terminal/SKILL.md").is_file())
         bindings = extension["contributes"]["agentTools"]
         self.assertEqual(

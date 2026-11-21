@@ -10,8 +10,8 @@
 
 ## 包与契约
 
-版本组合为 Terminal Host Service 2.0.0、Plugin API 1.7.0、插件 4.2.0。
-`plugin.json` 声明 `^1.7.0`、一个 MCP Server、一个 Skill、8 个 parent/sub Agent Tool
+版本组合为 Terminal Host Service 2.0.0、Plugin API 1.9.0、插件 4.2.0。
+`plugin.json` 声明 `^1.9.0`、一个 MCP Server、一个 Skill、8 个 parent/sub Agent Tool
 绑定，以及安装和升级所需权限。`.codex-plugin/plugin.json` 与 Cargo package 使用相同插件版本。
 
 工具为 `terminal_profiles`、`terminal_open`、`terminal_list`、`terminal_read`、
