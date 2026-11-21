@@ -8,7 +8,7 @@ const TOOLS: &[(&str, &str)] = &[
     ),
     (
         "terminal_open",
-        "Create a session-shared PTY, add it to the terminal list in the user bottom dock, and return the `control` reference to pass back to write, resize and close.",
+        "Create a session-shared PTY and add it to the terminal list in the user bottom dock.",
     ),
     (
         "terminal_list",
@@ -24,19 +24,7 @@ const TOOLS: &[(&str, &str)] = &[
     ),
     (
         "terminal_resize",
-        "Resize the PTY; pass the `control` reference returned by terminal_open.",
-    ),
-    (
-        "terminal_control_status",
-        "Transitional: terminals no longer have a control lease, so this reports no controller. Not needed before writing.",
-    ),
-    (
-        "terminal_control_acquire",
-        "Transitional: always succeeds and returns the fixed `control` reference; there is no lease to contend for.",
-    ),
-    (
-        "terminal_control_release",
-        "Transitional: always succeeds and has no effect; the PTY keeps running.",
+        "Resize the PTY.",
     ),
     (
         "terminal_reveal",
@@ -63,27 +51,10 @@ pub fn host_method(tool: &str) -> Result<&'static str, String> {
         "terminal_read" => Ok("xsec.terminal.read"),
         "terminal_write" => Ok("xsec.terminal.write"),
         "terminal_resize" => Ok("xsec.terminal.resize"),
-        "terminal_control_status" => Ok("xsec.terminal.control.status"),
-        "terminal_control_acquire" => Ok("xsec.terminal.control.acquire"),
-        "terminal_control_release" => Ok("xsec.terminal.control.release"),
         "terminal_reveal" => Ok("xsec.terminal.reveal"),
         "terminal_close" => Ok("xsec.terminal.close"),
         _ => Err(format!("unknown system-terminal MCP tool: {tool}")),
     }
-}
-
-fn control_schema() -> Value {
-    json!({
-        "type": "object", "additionalProperties": false,
-        "required": ["version", "instanceId", "accountContext", "epoch", "kind", "resourceId", "clientId", "leaseId", "generation"],
-        "properties": {
-            "version": { "const": 1 }, "instanceId": { "type": "string", "format": "uuid" },
-            "accountContext": { "type": "string", "minLength": 1 }, "epoch": { "type": "integer", "minimum": 1 },
-            "kind": { "const": "terminal" }, "resourceId": { "type": "string", "minLength": 1, "maxLength": 256 },
-            "clientId": { "type": "string", "format": "uuid" }, "leaseId": { "type": "string", "format": "uuid" },
-            "generation": { "type": "integer", "minimum": 1 }
-        }
-    })
 }
 
 fn schema(tool: &str) -> Map<String, Value> {
@@ -111,37 +82,23 @@ fn schema(tool: &str) -> Map<String, Value> {
             }
         }),
         "terminal_write" => json!({
-            "type": "object", "additionalProperties": false, "required": ["terminal_id", "data", "control"],
+            "type": "object", "additionalProperties": false, "required": ["terminal_id", "data"],
             "properties": {
                 "terminal_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-                "data": { "type": "string", "minLength": 1, "maxLength": 65536 }, "control": control_schema()
+                "data": { "type": "string", "minLength": 1, "maxLength": 65536 }
             }
         }),
         "terminal_resize" => json!({
-            "type": "object", "additionalProperties": false, "required": ["terminal_id", "cols", "rows", "control"],
+            "type": "object", "additionalProperties": false, "required": ["terminal_id", "cols", "rows"],
             "properties": {
                 "terminal_id": { "type": "string", "minLength": 1, "maxLength": 128 },
                 "cols": { "type": "integer", "minimum": 20, "maximum": 400 },
-                "rows": { "type": "integer", "minimum": 2, "maximum": 200 }, "control": control_schema()
+                "rows": { "type": "integer", "minimum": 2, "maximum": 200 }
             }
         }),
-        "terminal_reveal" | "terminal_control_status" => json!({
+        "terminal_reveal" | "terminal_close" => json!({
             "type": "object", "additionalProperties": false, "required": ["terminal_id"],
             "properties": { "terminal_id": { "type": "string", "minLength": 1, "maxLength": 128 } }
-        }),
-        "terminal_control_acquire" => json!({
-            "type": "object", "additionalProperties": false, "required": ["terminal_id", "takeover"],
-            "properties": {
-                "terminal_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-                "takeover": { "type": "boolean" }
-            }
-        }),
-        "terminal_close" | "terminal_control_release" => json!({
-            "type": "object", "additionalProperties": false, "required": ["terminal_id", "control"],
-            "properties": {
-                "terminal_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-                "control": control_schema()
-            }
         }),
         _ => unreachable!("tool descriptor table is fixed"),
     };
@@ -156,7 +113,7 @@ mod tests {
     use super::{host_method, tool_descriptors};
 
     #[test]
-    fn exposes_session_terminal_and_control_tools() {
+    fn exposes_the_eight_session_terminal_tools() {
         let names = tool_descriptors()
             .into_iter()
             .map(|tool| tool.name.to_string())
@@ -170,13 +127,27 @@ mod tests {
                 "terminal_read",
                 "terminal_write",
                 "terminal_resize",
-                "terminal_control_status",
-                "terminal_control_acquire",
-                "terminal_control_release",
                 "terminal_reveal",
                 "terminal_close",
             ]
         );
         assert_eq!(host_method("terminal_read").unwrap(), "xsec.terminal.read");
+        assert!(host_method("terminal_control_acquire").is_err());
+    }
+
+    #[test]
+    fn no_tool_takes_a_control_or_takeover_argument() {
+        for tool in tool_descriptors() {
+            let schema = serde_json::Value::Object((*tool.input_schema).clone());
+            let properties = schema["properties"].as_object();
+            for argument in ["control", "takeover"] {
+                assert!(
+                    properties.map_or(true, |p| !p.contains_key(argument)),
+                    "{} still has a {argument} argument",
+                    tool.name
+                );
+            }
+            assert!(!tool.name.contains("control"), "{} is a control tool", tool.name);
+        }
     }
 }
