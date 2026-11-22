@@ -73,7 +73,7 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
 
     def test_both_views_return_the_full_lifecycle(self) -> None:
         terminal = self.source.split("function terminalView(", 1)[1].split("\nasync function loadSettings(", 1)[0]
-        settings = self.source.split("function settingsView(", 1)[1].split("\nexport function activate(", 1)[0]
+        settings = self.source.split("function terminalSettings(", 1)[1].split("\nexport function activate(", 1)[0]
         for body in (terminal, settings):
             for method in ("mount", "update", "dispose"):
                 self.assertRegex(body, rf"(?m)^    {method}\(")
@@ -104,8 +104,15 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
         for method in MUTATIONS:
             self.assertEqual(declared[method], {"capability": "terminal.shell", "binding": "session"})
         self.assertFalse(REMOVED_CONTROL_METHODS & set(declared))
-        self.assertNotIn("control", self.source)
+        self.assertNotRegex(self.source, r"\bcontrol\b")
         self.assertIn('host.request("xsec.terminal.reveal", { terminalId })', self.source)
+
+    def test_settings_save_waits_for_a_successful_read(self) -> None:
+        # Saving before the settings are read would write the system default over the configured shell.
+        save = self.source.split("async function saveDefaultShell(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("if (!state.ready) return;", save)
+        self.assertIn("state.controls.save.disabled = true;", self.source)
+        self.assertIn("state.ready = true;", self.source)
 
     def test_frontend_and_skill_follow_the_declared_contract(self) -> None:
         self.assertTrue(FRONTEND.is_file())
