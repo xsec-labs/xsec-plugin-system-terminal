@@ -71,6 +71,13 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
         self.assertRegex(self.source, r"(?m)^export function activate\(host\) \{")
         self.assertEqual(len(re.findall(r"^export\b", self.source, re.MULTILINE)), 1)
 
+    def test_both_views_return_the_full_lifecycle(self) -> None:
+        terminal = self.source.split("function terminalView(", 1)[1].split("\nasync function loadSettings(", 1)[0]
+        settings = self.source.split("function settingsView(", 1)[1].split("\nexport function activate(", 1)[0]
+        for body in (terminal, settings):
+            for method in ("mount", "update", "dispose"):
+                self.assertRegex(body, rf"(?m)^    {method}\(")
+
     def test_frontend_uses_cursor_reads_and_detaches_without_terminating(self) -> None:
         self.assertIn('host.request("xsec.terminal.attach", { terminalId: existing })', self.source)
         self.assertIn('host.request("xsec.terminal.read", {', self.source)

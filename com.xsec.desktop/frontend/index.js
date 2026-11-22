@@ -65,7 +65,7 @@ function errorText(error) {
 // 纯文本视图不渲染终端转义序列：去掉 OSC 与 CSI 序列，并统一换行。
 function plainText(value) {
   return value
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
     .replace(/\r\n?/g, "\n");
 }
@@ -114,6 +114,8 @@ function currentSize(state) {
 }
 
 function keyData(event) {
+  // Shift+Tab 不发送给 Shell，留给浏览器移动焦点，避免键盘用户被困在终端里。
+  if (event.key === "Tab" && event.shiftKey) return "";
   const key = event.key.toLowerCase();
   // Ctrl 加字母发送控制字符（Ctrl+C 为 \x03）；Ctrl+V 交给粘贴事件处理。
   if (event.ctrlKey && !event.metaKey && event.key.length === 1 && key !== "v") {
