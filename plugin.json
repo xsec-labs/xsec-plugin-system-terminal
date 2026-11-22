@@ -46,7 +46,7 @@
         },
         "settingsPages": {
           "system-terminal": {
-            "title": "系统终端 MCP",
+            "title": "系统终端",
             "group": "plugins",
             "page": "system-terminal",
             "icon": "terminal",

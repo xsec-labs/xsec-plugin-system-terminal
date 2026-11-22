@@ -1,6 +1,6 @@
 # 系统终端 MCP Host 边界
 
-插件拥有 manifest、MCP 描述、Skill、xterm frontend 和原生 stdio sidecar。Runtime Host
+插件拥有 manifest、MCP 描述、Skill、可读的单文件 ESM 前端和原生 stdio sidecar。Runtime Host
 统一拥有会话身份、PTY、Shell profile、启动目录、进程组和审计（终端没有控制租约）。
 插件在标准 sandbox 中加载前端，并通过受限的 `xsec.terminal.*` 契约访问会话资源。
 

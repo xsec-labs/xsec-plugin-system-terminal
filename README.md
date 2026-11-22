@@ -1,6 +1,6 @@
 # 系统终端 MCP
 
-`com.xsec.system-terminal` 4.0.0 交付共享 PTY 的 xterm 界面、原生 stdio MCP Server
+`com.xsec.system-terminal` 4.2.0 交付共享 PTY 的文本界面、原生 stdio MCP Server
 和 `system-terminal` Skill。Desktop/Web 用户与 Agent 访问同一 Runtime 会话；Host
 持有 Shell、工作目录、进程组、权限和审计。
 
@@ -28,15 +28,14 @@ close 终止 PTY；会话结束、插件撤销或 Runtime 退出按 Host 生命�
 
 ## 构建与验证
 
-前端源码位于 `com.xsec.desktop/frontend-src/`，交付模块位于
-`com.xsec.desktop/frontend/index.js`。`mcp.json` 引用平台匹配的
+前端位于 `com.xsec.desktop/frontend/index.js`。它就是可读的 ESM 源码，没有打包、压缩或转译步骤，
+评审与 Marketplace 校验读到的正是运行时执行的代码。`mcp.json` 引用平台匹配的
 `bin/system-terminal-mcp`（Windows 为 `.exe`），执行上下文由 Host 提供。
 
 在工作区先运行资源控制器的 status 与 changed plan，再通过统一构建槽执行所选命令。
-复用 pnpm store 和共享 Cargo target。包的实际构建入口为：
+复用共享 Cargo target。sidecar 的构建入口为：
 
 ```sh
-rtk pnpm build:frontend
 rtk pnpm build:mcp
 ```
 
