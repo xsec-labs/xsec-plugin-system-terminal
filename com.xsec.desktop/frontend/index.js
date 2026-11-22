@@ -51,7 +51,7 @@ button:focus-visible,select:focus-visible,.screen:focus-visible{outline:2px soli
 .settings select{padding:6px 8px}
 `;
 
-function el(tag, className = "", text) {
+function e(tag, className = "", text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
@@ -250,7 +250,7 @@ async function showTerminalList(host, state) {
   try {
     const result = await host.request("xsec.terminal.list", {});
     for (const handle of result.items ?? []) {
-      const button = el("button", "", `${handle.title ?? handle.terminal_id} · ${handle.state}`);
+      const button = e("button", "", `${handle.title ?? handle.terminal_id} · ${handle.state}`);
       button.onclick = () => void revealTerminal(host, state, handle.terminal_id);
       ui.list.append(button);
     }
@@ -289,24 +289,24 @@ async function attachAndRead(host, state, terminalId) {
 }
 
 function mountTerminal(host, state, root) {
-  root.replaceChildren(el("style", "", css));
-  const app = el("main", "app");
-  const bar = el("div", "bar");
-  const stateText = el("span", "state", "正在连接…");
-  const list = el("div", "list");
-  const listButton = el("button", "", "终端列表");
-  const revealButton = el("button", "", "显示");
-  const reconnectButton = el("button", "", "重新连接");
-  const closeButton = el("button", "", "终止终端");
+  root.replaceChildren(e("style", "", css));
+  const app = e("main", "app");
+  const bar = e("div", "bar");
+  const stateText = e("span", "state", "正在连接…");
+  const list = e("div", "list");
+  const listButton = e("button", "", "终端列表");
+  const revealButton = e("button", "", "显示");
+  const reconnectButton = e("button", "", "重新连接");
+  const closeButton = e("button", "", "终止终端");
   reconnectButton.disabled = true;
   closeButton.disabled = true;
-  const screen = el("pre", "screen");
+  const screen = e("pre", "screen");
   screen.tabIndex = 0;
   screen.setAttribute("role", "application");
   screen.setAttribute("aria-label", "系统终端");
   const output = document.createTextNode("");
   screen.append(output);
-  const notice = el("div", "notice");
+  const notice = e("div", "notice");
   state.ui = { state: stateText, notice, list, screen, output, reconnect: reconnectButton, close: closeButton };
   listButton.onclick = () => void showTerminalList(host, state);
   revealButton.onclick = () => {
@@ -385,53 +385,65 @@ function terminalView(host) {
 }
 
 async function loadSettings(host, state) {
-  const ui = state.ui;
-  if (!ui) return;
+  const controls = state.controls;
+  if (!controls) return;
   try {
     const settings = await host.request("xsec.terminal.settings.get", {});
-    ui.select.replaceChildren(new Option("系统默认", ""));
+    controls.profile.replaceChildren(new Option("系统默认", ""));
     for (const profile of settings.profiles ?? []) {
-      ui.select.append(new Option(profile.label ?? profile.id, profile.id));
+      controls.profile.append(new Option(profile.label ?? profile.id, profile.id));
     }
-    ui.select.value = settings.configuredProfileId ?? "";
+    controls.profile.value = settings.configuredProfileId ?? "";
     const fixed = settings.platform !== "windows";
-    ui.select.disabled = fixed;
-    ui.save.disabled = fixed;
-    ui.info.textContent = fixed
+    controls.profile.disabled = fixed;
+    controls.save.disabled = fixed;
+    controls.info.textContent = fixed
       ? "macOS 和 Linux 使用当前帐户的系统登录 Shell。"
       : `当前默认 Shell：${settings.effectiveProfileId ?? "系统默认"}`;
+    state.ready = true;
   } catch (reason) {
-    ui.info.textContent = `读取设置失败：${errorText(reason)}`;
+    state.ready = false;
+    controls.profile.disabled = true;
+    controls.save.disabled = true;
+    controls.info.textContent = `读取设置失败：${errorText(reason)}`;
   }
 }
 
-async function saveDefaultShell(host, ui) {
+async function saveDefaultShell(host, state) {
+  // 没有读到设置时保存会把默认 Shell 写成系统默认，所以入口必须先看 state.ready。
+  if (!state.ready) return;
+  const controls = state.controls;
+  // 固定 Shell 的平台上保存按钮保持禁用，入口也不能绕过它。
+  if (controls.save.disabled) return;
   try {
-    await host.request("xsec.terminal.settings.set", { profileId: ui.select.value || null });
-    ui.info.textContent = "默认 Shell 已保存，仅影响之后新建的终端。";
+    await host.request("xsec.terminal.settings.set", { profileId: controls.profile.value || null });
+    controls.info.textContent = "默认 Shell 已保存，仅影响之后新建的终端。";
   } catch (reason) {
-    ui.info.textContent = `保存设置失败：${errorText(reason)}`;
+    controls.info.textContent = `保存设置失败：${errorText(reason)}`;
   }
 }
 
-function settingsView(host) {
-  const state = { ui: undefined, theme: undefined };
+function terminalSettings(host) {
+  const state = { controls: undefined, ready: false, theme: undefined };
   return {
     mount(root) {
-      root.replaceChildren(el("style", "", css));
-      const page = el("main", "app");
-      const title = el("div", "bar", "系统终端 MCP 设置");
-      const body = el("div", "settings");
-      const label = el("label", "", "默认 Shell");
-      const select = el("select");
-      const save = el("button", "", "保存默认 Shell");
-      const info = el("div", "notice");
-      label.append(select);
+      root.replaceChildren(e("style", "", css));
+      const page = e("main", "app");
+      const title = e("div", "bar", "系统终端 MCP 设置");
+      const body = e("div", "settings");
+      const label = e("label", "", "默认 Shell");
+      const profile = e("select");
+      const save = e("button", "", "保存默认 Shell");
+      const info = e("div", "notice");
+      label.append(profile);
       body.append(label, save, info);
       page.append(title, body);
       root.append(page);
-      state.ui = { select, save, info };
-      save.onclick = () => void saveDefaultShell(host, state.ui);
+      state.controls = { profile, save, info };
+      // 读取成功之前两个控件都禁用，不能保存还没读到的空选择。
+      state.controls.profile.disabled = true;
+      state.controls.save.disabled = true;
+      save.onclick = () => void saveDefaultShell(host, state);
       state.theme = followHostTheme(host);
       return loadSettings(host, state);
     },
@@ -447,6 +459,6 @@ function settingsView(host) {
 
 export function activate(host) {
   console.debug("system-terminal.activate", { kind: host.context?.kind });
-  if (host.context?.kind === "settings-page") return settingsView(host);
+  if (host.context?.kind === "settings-page") return terminalSettings(host);
   return terminalView(host);
 }

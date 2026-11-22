@@ -30,6 +30,8 @@ REMOVED_CONTROL_METHODS = {
     "xsec.terminal.control.acquire",
     "xsec.terminal.control.release",
 }
+# A control lease is any spelling of "control" except the UI object `controls` (state.controls in the settings view).
+CONTROL_LEASE = r"(?i)control(?!s\b)"
 
 
 class SystemTerminalMcpContractTests(unittest.TestCase):
@@ -73,7 +75,7 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
 
     def test_both_views_return_the_full_lifecycle(self) -> None:
         terminal = self.source.split("function terminalView(", 1)[1].split("\nasync function loadSettings(", 1)[0]
-        settings = self.source.split("function settingsView(", 1)[1].split("\nexport function activate(", 1)[0]
+        settings = self.source.split("function terminalSettings(", 1)[1].split("\nexport function activate(", 1)[0]
         for body in (terminal, settings):
             for method in ("mount", "update", "dispose"):
                 self.assertRegex(body, rf"(?m)^    {method}\(")
@@ -98,14 +100,33 @@ class SystemTerminalMcpContractTests(unittest.TestCase):
             mutations = targets & MUTATIONS
             if mutations:
                 self.assertRegex(payload, r"\bterminalId\b")
-                self.assertNotRegex(payload, r"\bcontrol\b")
+                self.assertNotRegex(payload, CONTROL_LEASE)
                 checked.update(mutations)
         self.assertEqual(checked, MUTATIONS)
         for method in MUTATIONS:
             self.assertEqual(declared[method], {"capability": "terminal.shell", "binding": "session"})
         self.assertFalse(REMOVED_CONTROL_METHODS & set(declared))
-        self.assertNotIn("control", self.source)
+        self.assertNotRegex(self.source, CONTROL_LEASE)
         self.assertIn('host.request("xsec.terminal.reveal", { terminalId })', self.source)
+
+    def test_settings_save_waits_for_a_successful_read(self) -> None:
+        # Saving before the settings are read would write the system default over the configured shell.
+        save = self.source.split("async function saveDefaultShell(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("if (!state.ready) return;", save)
+        self.assertIn("state.controls.save.disabled = true;", self.source)
+        load = self.source.split("async function loadSettings(", 1)[1].split("\n}\n", 1)[0]
+        before_read, found, after_read = load.partition('host.request("xsec.terminal.settings.get"')
+        self.assertTrue(found)
+        # ready becomes true only after the read succeeds, never before the request is sent.
+        self.assertNotIn("state.ready = true;", before_read)
+        self.assertIn("state.ready = true;", after_read)
+        self.assertIn("state.ready = false;", load.split("catch", 1)[1])
+
+    def test_control_lease_pattern_catches_lease_names_but_not_the_ui_object(self) -> None:
+        for lease in ("controlLease", "terminal_control_status", "requestControl", "control"):
+            self.assertRegex(lease, CONTROL_LEASE)
+        for ui in ("const controls = state.controls;", "state.controls.save.disabled"):
+            self.assertNotRegex(ui, CONTROL_LEASE)
 
     def test_frontend_and_skill_follow_the_declared_contract(self) -> None:
         self.assertTrue(FRONTEND.is_file())
